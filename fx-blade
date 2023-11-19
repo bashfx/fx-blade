@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+#-----------------------------><-----------------------------#
+# -> Author: qodeninja
+# -> Date: 11/18
+# -> Id: fx-blade
+# -> Autobuild: 8007f1
+# -> Desc: DESCRIPTION
+#-----------------------------><-----------------------------#
 ##
 ##     __    __          __
 ##    / /_  / /___ _____/ /__
@@ -46,11 +53,10 @@
 	diamond='\xE1\x9B\x9C'
   spark=$'\xe2\x9f\xa1'
   redo=$'\xE2\x9F\xB3'
-	logo=$(sed -n '6,11 p' $BASH_SOURCE)
-	sword=$(sed -n '12,15 p' $BASH_SOURCE)
-	dline=$(sed -n '18,18 p' $BASH_SOURCE)
+	logo=$(sed -n '9,15 p' $BASH_SOURCE)
+	sword=$(sed -n '16,19 p' $BASH_SOURCE)
+	dline=$(sed -n '22,22 p' $BASH_SOURCE)
 	tab=$'\t'
-
 	ESCAPE_SEQ=$'\033'
 	UP=$'A'
 	DOWN=$'B'
@@ -92,6 +98,8 @@
 	#:+ Available aliases A* ALIAS_1 ALIAS_2
 	__alias_list=()
 
+
+
   __semver_list=()
 
 	#:+ Which repo R does alias A map to? REPO_1 REPO_2
@@ -115,6 +123,9 @@
 	__buf=()
 	__filt=()
 	__stat=()
+
+  __keep_index=()
+  __keep=""
 
 #-------------------------------------------------------------------------------
 # Sig / Flow
@@ -208,6 +219,16 @@
 	}
 
 
+	function __dump_ez(){
+		local len arr i this 
+		arr=("${@}"); len=${#arr[@]}
+		if [ $len -gt 0 ]; then
+			for i in ${!arr[@]}; do
+				this="${arr[$i]}"
+				[ -n "$this" ] && __print "-> $this $x"
+			done
+		fi
+	}
 
 	function __dump(){
 		local len arr i this flag newl
@@ -271,20 +292,33 @@
 # Util
 #-------------------------------------------------------------------------------
 
-	function __filter_buffer(){
-		local IFS __tmp ig; __tmp=(); ig=("${@}");
+
+	__filter_buffer(){
+		local IFS i
+    local ig=("${@}");
+    local match
 		IFS=$' '
-		for this in ${__buf[@]}; do
+
+    for i in ${!__buf[@]}; do
+      this="${__buf[$i]}"
 			match=1
 			for that in ${ig[@]}; do
-				[[ "$this" =~ ^"$that".* ]] && match=0
+        if [[ "$this" =~ ^"$that".* ]]; then
+          match=0
+          break
+        fi
 			done
-			[ $match -eq 1 ] && __tmp+=( $this )  || :
-			[ $match -eq 0 ] && __filt+=( $this ) || :
+
+      if [ $match -eq 1 ]; then
+        __keep_index+=("$i") #only local so we have to pass 
+      else
+        __filt+=("$this")
+      fi
 		done
 
-		echo "${__tmp[@]}"
+	  echo "${__keep_index[@]}" #<-- here
 	}
+
 
 	function __print_buffer(){
 		local i j buf len sel act ttl pre
@@ -397,7 +431,7 @@
 				;;
 			"q")
 				__exitscreen
-        "Exiting..."
+        __print "Exiting..."
 				return 1
 				;;
 			"$SPACER")
@@ -463,11 +497,9 @@
 		this="$1"
 		handle_input
 
-		## __print $this
-
 		clear
 		__fullscreen
-		printf "\n\n\n\n\n$blue${logo//#/ }$x\n\n\t"
+		printf "\n\n\n\n\n$blue${logo//#/ }\n${sword}$x\n\n\t"
 
 		buf=($(__find_dirs "git" "$this")); ret=$?
 
@@ -482,13 +514,16 @@
 				len=${#arr[@]}
 				ndir=${arr[((len-1))]}
 				rdir=("${arr[@]:0:((len-1))}")
+
 				nd+=( "$ndir" )
+
 				this="$(__joinby \/ ${rdir[@]})"
-				#printf "$this -> $ndir ($len)\n"
+				printf "$this -> $ndir ($len)\n"
 				kg+=( $this )
 
 			done
 		fi
+
 
 		#use global buffer and sort uniqs
 		__buf=( $(printf "%s\n" "${kg[@]}" | sort -u) )
@@ -501,20 +536,31 @@
 		OIFS="$IFS"
 		IFS=';' read -ra this <<< "$__res"
 		kg=(${this[0]})
-		ig=(${this[2]})
+		ig=(${this[1]}) #<------------------------------------------- why was this 2 ???
 
 		__group_list=(${this[0]})
-
-		__print "$red Building excluse list... ${ig[*]} $x"
+    
+		__print "$red Building exclude list... $x"
 
 		for this in ${__group_list[@]}; do
 			__gdir_map+=( "$BLADE_SRC/$this" )
 		done
 
 		__buf=(${__known_list[@]})
-		__buf=( $(__filter_buffer "${ig[@]}" | sort -u) )
+		__buf=( $(__filter_buffer "${ig[@]}" | sort -u) ) #keeper values
+
+    #__dump "${__buf[@]}"
+    
+    #buffer rematch to keep index
+    for i in ${!__buf[@]}; do
+      this="${__buf[$i]}"
+      keep="${__known_list[$this]}" #index swap
+      __buf[$i]=$keep
+      __keep_index+=($this)
+    done
+
+
 		__buf_list=0
-		__dump "${__buf[@]}"
 
 		__selection_buffer "Select Projects to track [${arrup}${arrdn}/spacebar]:"; ret=$?
 		[ $ret -eq 1 ] && return 1
@@ -523,60 +569,58 @@
 		OIFS="$IFS"
 		IFS=';' read -ra this <<< "$__res"
 		kg=(${this[0]})
-    #__exitscreen
+
+    __exitscreen
 
     SEMVER=$(which semv)
     clear
 
     if [ -x "$SEMVER" ]; then
       __print "\n\n\n\n$blue\t${bolt} Blade found semver tool.${x}"
-
       if __confirm "[ ${green}SEMVER ready${x} ] Load versions (y/n/q) ? "; then
-        #__wait 
         __print "\n\n"
         for i in ${!kg[@]}; do
-        
           this="${kg[$i]}"
           this="$BLADE_SRC/$this"
           vers="$(semv auto $this)"
           [ -z "$vers" ] && {
             vers='missing'
             _vp="${red}${vers}${x}"   
-           } || _vp="${green}${vers}${x}" 
+           } || _vp="${green}${vers}${x}${grey}" 
           __semver_list+=($vers)
           __print "[$_vp] ${purple}${this}${x}"
-          
         done
-        __wait "\n${grey}Press Enter to Continue..."
       else
         __print "${red}Skipping Semver..${x}"
       fi
     fi
 
-
+    __print "\n\n"
 
 		for i in ${!kg[@]}; do
+      __keep="${__keep_index[$i]}"
 			this="${kg[$i]}"
-			rthis="${nd[$i]}"
+			rthis="${nd[$__keep]}"  #full index is from another place so need keeper mathc
 			athis=${rthis//-/_}
 			for j in ${!__group_list[@]}; do
 				that="${__group_list[$j]}"
 				case $this in
 					$that/*)
 						__group_map+=($j)
-						__alias_map+=($i)
+						__alias_map+=($i) #even though i thought you were not you are in fact I
 						__alias_list+=($athis)
-						__repo_list+=($athis)
+						__repo_list+=($rthis) #?? even you are wrong!
 						__rdir_map+=( "$BLADE_SRC/$this" )
 					;;
 					*) : ;;
 				esac
 			done
 		done
-		##__dump "${__group_map[@]}"
 		__buf_list=0
 		__dump "${__rdir_map[@]}"
 		save_rc_file
+
+    __print "\n\n$blue\t${bolt} Blade indexing complete. \n\n${x}"
 	}
 
 
@@ -624,7 +668,7 @@
 				__rdir_map=(${__rdir_map[*]})
 				__alias_list=(${__alias_list[*]})
 				__alias_map=(${__alias_map[*]})
-        __semver_list=(${__semver_list[*]})
+				__semver_list=(${__semver_list[*]})
 			fi
 			BLADE_LOAD=1
 		EOF
@@ -714,7 +758,7 @@
 	}
 
 
-	function repo_info(){
+	function sweep_info(){
 
     local len this name SEMVER fwd chg vers __buf
 
@@ -749,11 +793,6 @@
           [ $chg -gt 0 ] && { _nc="${blue}${spark}${x}"; _sc="${orange}";  } || { _nc=" ";_sc="${grey}";chg='.'; }
           [ -z "$vers" ] && { _vc="${grey}"; vers="missing"; } || _vc="";
           [ -z "$fwd"  ] && {  _fc="${grey}"; fwd="none";    } || _fc="${green}";
-        
-
-          #sleep 0.2
-          # printf "$i -> $name \n"; 
-          #__print "$vers : $vers_o |chg? ${chg} | fwd $fwd"
 
           printf "%-20s${_nc} | ${_sc}%-5s${x} | ${_vc}%12s${x} | ${_fc}%12s${x} \n" "${name}" "${chg}" "${vers}" "${fwd}" 
         fi
@@ -791,7 +830,7 @@
 			ls)  list_repos 0; ret=$?;;
 			go)  list_repos 1; ret=$?;;
 			jump) jump_repos $BLADE_JUMP; ret=$?;;
-      sweep) repo_info; ret=$?;;
+      sweep) sweep_info; ret=$?;;
 			rc)  cat $BLADE_RC; ret=$?;;
 			find) find_repos; ret=$?;;
       clean) do_clean; ret=$?;;
@@ -852,6 +891,3 @@
   else
     main "$@";ret=$?
   fi
-
-
-#  alias blade=". bladex --exec"
