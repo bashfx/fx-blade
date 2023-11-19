@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-
-
-
 ##
 ##     __    __          __
 ##    / /_  / /___ _____/ /__
@@ -25,7 +22,7 @@
 	green=$(tput setaf 2)
 	blue=$(tput setaf 12)
 	purple=$(tput setaf 213)
-	grey=$(tput setaf 244)
+	grey=$(tput setaf 239)
 	w=$(tput setaf 15)
 	wz=$(tput setaf 248)
 	dash="\xE2\x80\x95"
@@ -34,8 +31,8 @@
 	eos="$(tput ed)"
 	cll="$(tput cuu 1 && tput el)"
 	bld="$(tput bold)"
-	rvm="$(tput rev)"
-
+	inv="$(tput rev)"
+  bolt="\xE2\x86\xAF"
 	pass='\xE2\x9C\x93'
 	fail='\xE2\x9C\x97'
 	delta='\xE2\x96\xB3'
@@ -43,8 +40,12 @@
 	dots='\xE2\x80\xA6'
 	flecha='\xC2\xBB'
 	flecha2='\xC2\xAB'
+  arrup='\xE2\x86\x91'
+  arrdn='\xE2\x86\x93'
 	space='\x20'
 	diamond='\xE1\x9B\x9C'
+  spark=$'\xe2\x9f\xa1'
+  redo=$'\xE2\x9F\xB3'
 	logo=$(sed -n '6,11 p' $BASH_SOURCE)
 	sword=$(sed -n '12,15 p' $BASH_SOURCE)
 	dline=$(sed -n '18,18 p' $BASH_SOURCE)
@@ -66,7 +67,7 @@
    CPID="$$"
 
 	BLADE_RC="$HOME/.bladerc"
-	BLADE_SRC="$HOME/.code"
+	BLADE_SRC="$HOME/.dx/dev/repos"
 	BLADE_SAFE_MODE=0
 
 	BLD_REPO_1=
@@ -90,6 +91,8 @@
 
 	#:+ Available aliases A* ALIAS_1 ALIAS_2
 	__alias_list=()
+
+  __semver_list=()
 
 	#:+ Which repo R does alias A map to? REPO_1 REPO_2
 	__alias_map=()
@@ -153,10 +156,10 @@
 	function fin(){
 		local E="$?"
 		cleanup
-		if [ -z "$opt_readonly_mode" ]; then
-			[ $E -eq 0 ] && printf "${green}${pass} ${1:-Done}." \
-									 || printf "$red$fail ${1:-${err:-Cancelled}}."
-		fi
+		# if [ -z "$opt_readonly_mode" ]; then
+		# 	[ $E -eq 0 ] && printf "${green}${pass} ${1:-Done}." \
+		# 							 || printf "$red$fail ${1:-${err:-Cancelled}}."
+		# fi
 	}
 
 
@@ -223,8 +226,9 @@
 	}
 
 	function __wait(){
-		local n l;n=0
-		while test $n -lt 3; do
+		local n l m=${1:-"Press Enter."};n=0
+    printf "\r${m}$eol\n"
+		while test $n -lt 1; do
 			read l
 			sleep 0.2
 			echo -n " "
@@ -289,6 +293,7 @@
 		act=${2:-0};
 		buf=("${__buf[@]}")
 		len=${#buf[@]}
+
 		if [ $len -gt 0 ]; then
 			((j=sel+1))
 			printf "\n\n\n$tab${__buf_msg} (sel:$j)\n\n"
@@ -301,11 +306,11 @@
 					case "$this_st" in
 						"sel")  pre="$green[$pass]$x";;
 						"del")  pre="$red[$fail]$x";;
-						"none") pre="[$diamond]";;
+						"none") pre="[$spark]";;
 						*);;
 					esac
 				else
-					[[ "$i" = "$sel" ]] && pre="$purple[$diamond]" || pre="[$diamond]"
+					[[ "$i" = "$sel" ]] && pre="$purple[$spark]" || pre="[$spark]"
 				fi
 
 				[[ "$i" = "$sel" ]] && delim="$purple$flecha$x" || delim="$space"
@@ -392,6 +397,7 @@
 				;;
 			"q")
 				__exitscreen
+        "Exiting..."
 				return 1
 				;;
 			"$SPACER")
@@ -471,6 +477,7 @@
 
 		if [ $len -gt 0 ]; then
 			for this in ${buf[@]}; do
+
 				arr=(${this//\// })
 				len=${#arr[@]}
 				ndir=${arr[((len-1))]}
@@ -479,12 +486,13 @@
 				this="$(__joinby \/ ${rdir[@]})"
 				#printf "$this -> $ndir ($len)\n"
 				kg+=( $this )
+
 			done
 		fi
 
 		#use global buffer and sort uniqs
 		__buf=( $(printf "%s\n" "${kg[@]}" | sort -u) )
-		__selection_buffer "Select Paths to add to Groups:"; ret=$?
+		__selection_buffer "Select Paths to add to Groups [${arrup}${arrdn}/spacebar]:"; ret=$?
 		[ $ret -eq 1 ] && return 1
 
 		__sort_buffer
@@ -496,8 +504,8 @@
 		ig=(${this[2]})
 
 		__group_list=(${this[0]})
-		__print "$blue Keep List:: ${kg[*]} $x"
-		__print "$red Igno List:: ${ig[*]} $x"
+
+		__print "$red Building excluse list... ${ig[*]} $x"
 
 		for this in ${__group_list[@]}; do
 			__gdir_map+=( "$BLADE_SRC/$this" )
@@ -508,13 +516,42 @@
 		__buf_list=0
 		__dump "${__buf[@]}"
 
-		__selection_buffer "Select Projects to track:"; ret=$?
+		__selection_buffer "Select Projects to track [${arrup}${arrdn}/spacebar]:"; ret=$?
 		[ $ret -eq 1 ] && return 1
 		__sort_buffer
 
 		OIFS="$IFS"
 		IFS=';' read -ra this <<< "$__res"
 		kg=(${this[0]})
+    #__exitscreen
+
+    SEMVER=$(which semv)
+    clear
+
+    if [ -x "$SEMVER" ]; then
+      __print "\n\n\n\n$blue\t${bolt} Blade found semver tool.${x}"
+
+      if __confirm "[ ${green}SEMVER ready${x} ] Load versions (y/n/q) ? "; then
+        #__wait 
+        __print "\n\n"
+        for i in ${!kg[@]}; do
+        
+          this="${kg[$i]}"
+          this="$BLADE_SRC/$this"
+          vers="$(semv auto $this)"
+          [ -z "$vers" ] && {
+            vers='missing'
+            _vp="${red}${vers}${x}"   
+           } || _vp="${green}${vers}${x}" 
+          __semver_list+=($vers)
+          __print "[$_vp] ${purple}${this}${x}"
+          
+        done
+        __wait "\n${grey}Press Enter to Continue..."
+      else
+        __print "${red}Skipping Semver..${x}"
+      fi
+    fi
 
 
 
@@ -587,6 +624,7 @@
 				__rdir_map=(${__rdir_map[*]})
 				__alias_list=(${__alias_list[*]})
 				__alias_map=(${__alias_map[*]})
+        __semver_list=(${__semver_list[*]})
 			fi
 			BLADE_LOAD=1
 		EOF
@@ -603,6 +641,7 @@
 		__alias_list=()
 		__repo_list=()
 		__rdir_map=()
+    __semver_list=()
 	}
 
 	function list_deep_repos(){
@@ -674,8 +713,59 @@
 		fi
 	}
 
+
 	function repo_info(){
-		:
+
+    local len this name SEMVER fwd chg vers __buf
+
+    __buf=( $(printf "%s\n" "${__rdir_map[@]}") ); 
+    len=${#__buf[@]}; 
+    SEMVER=$(which semv)
+
+    if [ -x "$SEMVER" ]; then
+
+      __buf_msg="$blue${logo//#/ }\n\n"
+      
+      printf "$__buf_msg"
+      printf "%-20s  | %-5s | %12s | %12s \n" "name" "stat" "vers" "fwd" 
+      printf "$dline\n${x}"
+
+      for i in ${!__buf[@]}; do
+        ret=
+        this="${__buf[$i]}"
+        name="${__alias_list[$i]}"
+
+  
+        cd $this;
+        if [ $? -eq 0 ]; then
+          fwd="$(semv auto $this 'fwd')"
+          chg="$(semv auto $this 'st')"
+          vers="$(semv auto $this)"
+          vers_o="${__semver_list[$i]}"
+
+          __commits+=( $this ) #  needs a commit
+
+
+          [ $chg -gt 0 ] && { _nc="${blue}${spark}${x}"; _sc="${orange}";  } || { _nc=" ";_sc="${grey}";chg='.'; }
+          [ -z "$vers" ] && { _vc="${grey}"; vers="missing"; } || _vc="";
+          [ -z "$fwd"  ] && {  _fc="${grey}"; fwd="none";    } || _fc="${green}";
+        
+
+          #sleep 0.2
+          # printf "$i -> $name \n"; 
+          #__print "$vers : $vers_o |chg? ${chg} | fwd $fwd"
+
+          printf "%-20s${_nc} | ${_sc}%-5s${x} | ${_vc}%12s${x} | ${_fc}%12s${x} \n" "${name}" "${chg}" "${vers}" "${fwd}" 
+        fi
+
+
+
+      done
+      printf "$blue$dline\n${x}"
+    else
+      __print "${red} Sadly no semver.${x}"
+    fi
+
 		# url
 		# user
 		# service
@@ -701,10 +791,13 @@
 			ls)  list_repos 0; ret=$?;;
 			go)  list_repos 1; ret=$?;;
 			jump) jump_repos $BLADE_JUMP; ret=$?;;
+      sweep) repo_info; ret=$?;;
 			rc)  cat $BLADE_RC; ret=$?;;
 			find) find_repos; ret=$?;;
+      clean) do_clean; ret=$?;;
 			setup)
-				if __confirm "[ ${red}BLADERC LOADED${x} ] Do you want to run autosetup? > "; then
+        clear
+				if __confirm "\n\n\n\n[ ${green}BLADERC LOADED${x} ] Do you want to run autosetup (y/n/q) > "; then
 					reset_user_data
 					sleep 0.5
 					auto_setup
@@ -719,13 +812,7 @@
 
 
 	function main(){
-
-
-
-		#sleep 0.5
-		#echo "$purple${sword//#/$'\t'}$x"
 		load_rc_file
-
 		if [ -z "$BLADE_LOAD" ]; then
 			__print "Missing BLADE_RC, trying to install $BLADE_LOAD"
 			sleep 1
@@ -734,9 +821,9 @@
 			cd $BLADE_SRC
 			__dispatch "$@"
 		fi
-
 	}
 
+#TODO: list_deep_repos ??
 
 #-------------------------------------------------------------------------------
 # Driver
