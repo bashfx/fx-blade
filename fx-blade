@@ -502,7 +502,7 @@
 		printf "\n\n\n\n\n$blue${logo//#/ }\n${sword}$x\n\n\t"
 
 		buf=($(__find_dirs "git" "$this")); ret=$?
-
+    sleep 4
 		__wait
 		__known_list=("${buf[@]}")
 		len=${#buf[@]}
