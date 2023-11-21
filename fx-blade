@@ -862,7 +862,7 @@
 			        if [ -z "$msg" ]; then
 			        	note=$(__prompt "${blue}Enter a commit message${yellow}..." "woop")
 			        fi
-
+			        printf "$x"
 			        note=${msg:-$note}
 			        git add . --all
 			        git commit -m "$note :sweep:"
