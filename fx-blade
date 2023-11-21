@@ -218,6 +218,21 @@
 		return $ret
 	}
 
+	opt_yes=1
+  if [[ "${@}" =~ "--yes" ]]; then
+    opt_yes=0
+    shift;
+  fi
+
+  __prompt(){
+    local msg="$1" default="$2"
+    if [ $opt_yes -eq 1 ]; then
+      read -p "$msg --> " answer
+      [ -n "$answer" ] && echo "$answer" || echo "$default"
+    else 
+      echo "$default"
+    fi
+  }
 
 	function __dump_ez(){
 		local len arr i this 
@@ -760,7 +775,7 @@
 
 	function sweep_info(){
 
-    local len this name SEMVER fwd chg vers __buf
+    local len this name SEMVER fwd chg vers __buf force=${1:-1}
 
     __buf=( $(printf "%s\n" "${__rdir_map[@]}") ); 
     len=${#__buf[@]}; 
@@ -774,12 +789,14 @@
       printf "%-20s  | %-5s | %12s | %12s \n" "name" "stat" "vers" "fwd" 
       printf "$dline\n${x}"
 
+      __ttl=0
+      __chg=()
+
       for i in ${!__buf[@]}; do
         ret=
         this="${__buf[$i]}"
         name="${__alias_list[$i]}"
 
-  
         cd $this;
         if [ $? -eq 0 ]; then
           fwd="$(semv auto $this 'fwd')"
@@ -789,6 +806,12 @@
 
           __commits+=( $this ) #  needs a commit
 
+          if [ $chg -gt 0 ]; then
+	          __ttl=$(($__ttl + $chg))
+	          __chg+=($this)
+	          __keep_index+=($i)
+
+	        fi
 
           [ $chg -gt 0 ] && { _nc="${blue}${spark}${x}"; _sc="${orange}";  } || { _nc=" ";_sc="${grey}";chg='.'; }
           [ -z "$vers" ] && { _vc="${grey}"; vers="missing"; } || _vc="";
@@ -805,12 +828,91 @@
       __print "${red} Sadly no semver.${x}"
     fi
 
+    if [ $__ttl -gt 0 ]; then
+
+    	# Save the cursor position
+			
+
+
+    	if [ $force -eq 0 ]; then 
+		    if __confirm "\rThere are ${orange}${__ttl}${x} changes. Do you want to sweep commit on curr branch? (y/n/q) "; then
+		        
+	        if __confirm "One commit message for all? (y/n/q)"; then
+	        	msg=$(__prompt "${blue}Enter a commit message${yellow}..." "woop")
+	        fi
+		      
+		    	for i in ${!__keep_index[@]}; do
+		    		clear
+
+		        this="${__keep_index[$i]}"
+		        name="${__alias_list[$this]}"
+		        repo="${__buf[$this]}"
+
+		        cd $repo
+		        branch=$(git rev-parse --abbrev-ref HEAD)
+
+		        if [ -n "$branch" ]; then
+
+			        __print "\r${blue}${bolt} Checking [$name]--> ${repo} ${x}"
+			        
+			        git status
+			        __print "$blue$dline\n${x}"
+
+
+			        if [ -z "$msg" ]; then
+			        	note=$(__prompt "${blue}Enter a commit message${yellow}..." "woop")
+			        fi
+
+			        note=${msg:-$note}
+			        git add . --all
+			        git commit -m "$note :sweep:"
+			        git push origin "${branch}"
+
+			        semv
+			      else
+
+			      	__print "${red}Error finding repo branch.${x}"
+			      fi
+
+
+		    	done
+
+		    	
+		    fi
+		  else
+		  	__print "${blue}There are ${spark} ${orange}${__ttl}${x}${blue} changes.${x}"
+		  fi
+
+
+	  fi
+    #note=$(__prompt "${blue}Add a note for the tag${yellow}" "auto tag bump")
 		# url
 		# user
 		# service
 		# branch
 		# status
 	}
+
+
+
+	# function __dump(){
+	# 	local len arr i this flag newl
+	# 	arr=("${@}"); len=${#arr[@]}
+	# 	[ $__buf_list -eq 0 ] && flag="\r" &&  newl="$eol" || newl="\n"
+	# 	if [ $len -gt 0 ]; then
+	# 		handle_input
+	# 		for i in ${!arr[@]}; do
+	# 			this="${arr[$i]}"
+	# 			[ -n "$this" ] && printf "$flag$orange$dots(%02d of %02d) $this $x$newl" "$i" "$len"
+	# 			sleep 0.1
+	# 		done
+	# 		cleanup
+	# 		printf "$flag$green$pass (%02d of %02d) Read. $x$eol\n" "$len" "$len"
+	# 	fi
+	# }
+
+
+
 
 	function load_rc_file(){
 		[ ! -f $BLADE_RC ] && err="Missing BLADE_RC file" && return 1;
@@ -831,6 +933,7 @@
 			go)  list_repos 1; ret=$?;;
 			jump) jump_repos $BLADE_JUMP; ret=$?;;
       sweep) sweep_info; ret=$?;;
+			fix) sweep_info 0; ret=$?;;
 			rc)  cat $BLADE_RC; ret=$?;;
 			find) find_repos; ret=$?;;
       clean) do_clean; ret=$?;;
