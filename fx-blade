@@ -28,6 +28,7 @@
 	orange=$(tput setaf 214)
 	green=$(tput setaf 2)
 	blue=$(tput setaf 12)
+  blue2=$(tput setaf 4)
 	purple=$(tput setaf 213)
 	grey=$(tput setaf 239)
 	w=$(tput setaf 15)
@@ -98,7 +99,7 @@
 	#:+ Available aliases A* ALIAS_1 ALIAS_2
 	__alias_list=()
 
-
+  __jump_name=()
 
   __semver_list=()
 
@@ -683,6 +684,7 @@
 				__rdir_map=(${__rdir_map[*]})
 				__alias_list=(${__alias_list[*]})
 				__alias_map=(${__alias_map[*]})
+        __jump_name=(${__jump_name[*]})
 				__semver_list=(${__semver_list[*]})
 			fi
 			BLADE_LOAD=1
@@ -773,7 +775,66 @@
 	}
 
 
-	function sweep_info(){
+	do_mark_up(){
+
+    MARKFX=$(which mark)
+    if [ -x "$MARKFX" ]; then
+
+      __buf=( $(printf "%s\n" "${__rdir_map[@]}") ); 
+      len=${#__buf[@]}; 
+      __print "${blue}Setting up repo bookmarks...${len} ${x}"
+      __jump_name=()
+
+      for i in ${!__buf[@]}; do
+
+        __buf_msg="$blue${logo//#/ }\n\n"
+        j=$(($i+1))
+
+        this="${__buf[$i]}"
+        pretty="${__alias_list[$i]}"
+        nick="${__jump_name[$i]}" 
+
+
+        #if [ -z "$nick" ]; then
+        this="${this%/}"  
+        __print "path -> [$this]"
+        #mark --fm $this
+        this_mark=$(mark --fm $this)
+        __print "mark -> [$this_mark]"
+        
+        __print "[$this_mark] is mark -> [$pretty] [$this]"
+
+        if [ -n "$this_mark" ]; then
+
+          if __confirm "\r${orange}${bolt} Mark exists [$this_mark] for [$pretty], change? (y/n/q) "; then
+            __print "$this_mark is found!"
+            $(mark --rm "$this_mark")
+          else
+            continue
+            #err=$?
+          fi
+
+        fi
+        if __confirm "\r${blue}${bolt} ${green}Add${blue} a jumpname for [$pretty]? (y/n/q) "; then
+          nick=$(__prompt "${blue}Enter a jumpname${yellow}..." "$pretty")
+          __jump_name+=("$nick")
+          #sed -i.bak "s|^__jump_name\[$i\]\=.*$|__jump_name\[$i\]\=\"$nick\"|" ${BLADE_RC}
+          #rm "${BLADE_RC}.bak"
+          $(cd $this;mark --add $nick)
+        else
+          __jump_name+=("none")
+        fi
+
+
+        __print "${grey} ${j} ${pretty} -> ${nick} ${x}"
+      done
+      #save_rc_file
+
+    fi
+  }
+
+
+	sweep_info(){
 
     local len this name SEMVER fwd chg vers __buf force=${1:-1}
 
@@ -786,7 +847,7 @@
       __buf_msg="$blue${logo//#/ }\n\n"
       
       printf "$__buf_msg"
-      printf "%-20s  | %-5s | %12s | %12s \n" "name" "stat" "vers" "fwd" 
+      printf "%-5s | %-20s | %-5s | %12s | %12s \n" "idx" "name" "stat" "vers" "fwd" 
       printf "$dline\n${x}"
 
       __ttl=0
@@ -796,6 +857,7 @@
         ret=
         this="${__buf[$i]}"
         name="${__alias_list[$i]}"
+        j=$(($i+1))
 
         cd $this;
         if [ $? -eq 0 ]; then
@@ -809,15 +871,14 @@
           if [ $chg -gt 0 ]; then
 	          __ttl=$(($__ttl + $chg))
 	          __chg+=($this)
-	          __keep_index+=($i)
-
+	          __keep_index+=($i) # reusing keep index buffer
 	        fi
 
           [ $chg -gt 0 ] && { _nc="${blue}${spark}${x}"; _sc="${orange}";  } || { _nc=" ";_sc="${grey}";chg='.'; }
           [ -z "$vers" ] && { _vc="${grey}"; vers="missing"; } || _vc="";
           [ -z "$fwd"  ] && {  _fc="${grey}"; fwd="none";    } || _fc="${green}";
 
-          printf "%-20s${_nc} | ${_sc}%-5s${x} | ${_vc}%12s${x} | ${_fc}%12s${x} \n" "${name}" "${chg}" "${vers}" "${fwd}" 
+          printf "%-5s | %-20s${_nc} | ${_sc}%-5s${x} | ${_vc}%12s${x} | ${_fc}%12s${x} \n" "${j}" "${name}" "${chg}" "${vers}" "${fwd}" 
         fi
 
 
@@ -937,6 +998,7 @@
 			rc)  cat $BLADE_RC; ret=$?;;
 			find) find_repos; ret=$?;;
       clean) do_clean; ret=$?;;
+      mu) do_mark_up; ret=$?;;
 			setup)
         clear
 				if __confirm "\n\n\n\n[ ${green}BLADERC LOADED${x} ] Do you want to run autosetup (y/n/q) > "; then
