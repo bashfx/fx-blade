@@ -861,7 +861,8 @@
 
         cd $this;
         if [ $? -eq 0 ]; then
-          fwd="$(semv auto $this 'fwd')"
+
+          fwd="$(semv auto $this 'fwd')" #TODO: more granular version bumps
           chg="$(semv auto $this 'st')"
           vers="$(semv auto $this)"
           vers_o="${__semver_list[$i]}"
