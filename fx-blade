@@ -74,7 +74,7 @@
    CPID="$$"
 
 	BLADE_RC="$HOME/.bladerc"
-	BLADE_SRC="$HOME/.dx/dev/repos"
+	BLADE_SRC="$HOME/.dx"
 	BLADE_SAFE_MODE=0
 
 	BLD_REPO_1=
@@ -559,7 +559,7 @@
 		__print "$red Building exclude list... $x"
 
 		for this in ${__group_list[@]}; do
-			__gdir_map+=( "$BLADE_SRC/$this" )
+			__gdir_map+=( "$this" ) #$BLADE_SRC/
 		done
 
 		__buf=(${__known_list[@]})
