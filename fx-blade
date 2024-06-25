@@ -74,7 +74,7 @@
    CPID="$$"
 
 	BLADE_RC="$HOME/.bladerc"
-	BLADE_SRC="$HOME/.dx"
+	BLADE_SRC="$HOME/.dx/dev" #path roots very delicate
 	BLADE_SAFE_MODE=0
 
 	BLD_REPO_1=
